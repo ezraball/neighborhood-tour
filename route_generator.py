@@ -4,6 +4,7 @@ import math
 import random
 import requests
 from dataclasses import dataclass
+from typing import Optional, List, Tuple
 from config import (
     GOOGLE_API_KEY,
     ORS_API_KEY,
@@ -22,7 +23,7 @@ class RoutePoint:
     heading: float  # Direction to face (0-360, 0=North)
 
 
-def get_walking_isochrone(lat: float, lng: float, walk_minutes: int = SIMULATED_WALK_MINUTES) -> list[tuple[float, float]] | None:
+def get_walking_isochrone(lat: float, lng: float, walk_minutes: int = SIMULATED_WALK_MINUTES) -> Optional[List[Tuple[float, float]]]:
     """
     Get a walking isochrone polygon from OpenRouteService.
 
@@ -68,7 +69,7 @@ def get_walking_isochrone(lat: float, lng: float, walk_minutes: int = SIMULATED_
     return None
 
 
-def point_in_polygon(lat: float, lng: float, polygon: list[tuple[float, float]]) -> bool:
+def point_in_polygon(lat: float, lng: float, polygon: List[Tuple[float, float]]) -> bool:
     """
     Check if a point is inside a polygon using ray casting algorithm.
 
