@@ -89,3 +89,7 @@ echo
 echo "Or add to your shell profile (~/.zshrc or ~/.bashrc):"
 echo "  echo 'export GOOGLE_API_KEY=\"$KEY_STRING\"' >> ~/.zshrc"
 echo
+echo "=== OPTIONAL: OpenRouteService (for walking isochrones) ==="
+echo "Sign up free at: https://openrouteservice.org/dev/#/signup"
+echo "Then set: export ORS_API_KEY=\"your-ors-key\""
+echo

@@ -48,11 +48,17 @@ Tour video created successfully!
 - **ffmpeg** - For video encoding
 - **Google Cloud account** with billing enabled
 
-### Required Google APIs
+### Required APIs
 
+**Google Maps (required):**
 - Geocoding API
 - Street View Static API
 - Maps Static API (for fallback satellite imagery)
+
+**OpenRouteService (optional, recommended):**
+- Walking isochrones - Defines the walkable area based on actual walking time rather than straight-line distance
+- Free tier: 2,000 requests/day
+- Sign up at [openrouteservice.org](https://openrouteservice.org/dev/#/signup)
 
 ## Installation
 
@@ -84,10 +90,14 @@ Or manually:
 3. Create an API key
 4. Enable billing (required for Maps APIs)
 
-### 4. Configure API key
+### 4. Configure API keys
 
 ```bash
-export GOOGLE_API_KEY="your-api-key-here"
+# Required
+export GOOGLE_API_KEY="your-google-api-key"
+
+# Optional (enables walking isochrones for better route boundaries)
+export ORS_API_KEY="your-openrouteservice-key"
 ```
 
 Or edit `config.py` directly.
@@ -128,11 +138,17 @@ python main.py --batch hotels.txt --output-dir ./tours/
 
 ### Route Generation
 
-The tool uses OpenStreetMap data (via the Overpass API) to find walkable streets near the target address. It then generates a random wandering path that:
+The tool determines the walkable area using one of two methods:
 
-- Starts at the hotel location
-- Explores nearby residential streets, footpaths, and pedestrian areas
-- Covers approximately 4.8km total distance (equivalent to a 1-hour walk)
+1. **Walking Isochrones (recommended)** - If `ORS_API_KEY` is set, uses OpenRouteService to calculate the actual area reachable within the walk time. This accounts for pedestrian paths, crossings, and terrain.
+
+2. **Distance-based fallback** - If no ORS key is available, uses a simple radius around the hotel.
+
+Once the walkable boundary is determined, the tool:
+
+- Fetches street data from OpenStreetMap (via Overpass API)
+- Filters to streets within the walkable area
+- Generates a random wandering path (~4.8km total)
 - Samples a point every 10 meters for Street View capture
 
 ### Image Capture

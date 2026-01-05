@@ -5,6 +5,9 @@ import os
 # Google API Key - set via environment variable or replace with your key
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "YOUR_API_KEY_HERE")
 
+# OpenRouteService API Key - for walking isochrones (free at openrouteservice.org)
+ORS_API_KEY = os.environ.get("ORS_API_KEY", "YOUR_ORS_API_KEY_HERE")
+
 # Video settings
 VIDEO_DURATION_SECONDS = 60  # Output video length
 VIDEO_FPS = 30

@@ -1,4 +1,4 @@
-"""Route generator - creates random wander paths using OpenStreetMap data."""
+"""Route generator - creates random wander paths using OpenStreetMap data and isochrones."""
 
 import math
 import random
@@ -6,9 +6,11 @@ import requests
 from dataclasses import dataclass
 from config import (
     GOOGLE_API_KEY,
+    ORS_API_KEY,
     DEFAULT_RADIUS_METERS,
     TOTAL_ROUTE_METERS,
     SAMPLE_INTERVAL_METERS,
+    SIMULATED_WALK_MINUTES,
 )
 
 
@@ -18,6 +20,80 @@ class RoutePoint:
     lat: float
     lng: float
     heading: float  # Direction to face (0-360, 0=North)
+
+
+def get_walking_isochrone(lat: float, lng: float, walk_minutes: int = SIMULATED_WALK_MINUTES) -> list[tuple[float, float]] | None:
+    """
+    Get a walking isochrone polygon from OpenRouteService.
+
+    Args:
+        lat: Center latitude
+        lng: Center longitude
+        walk_minutes: Walking time in minutes
+
+    Returns:
+        List of (lat, lng) coordinates forming the isochrone polygon, or None if unavailable
+    """
+    if ORS_API_KEY == "YOUR_ORS_API_KEY_HERE":
+        return None  # Fall back to distance-based if no API key
+
+    url = "https://api.openrouteservice.org/v2/isochrones/foot-walking"
+    headers = {
+        "Authorization": ORS_API_KEY,
+        "Content-Type": "application/json"
+    }
+
+    # Request isochrone for half the walk time (we wander out and back roughly)
+    range_seconds = (walk_minutes // 2) * 60
+
+    body = {
+        "locations": [[lng, lat]],  # Note: ORS uses [lng, lat] order
+        "range": [range_seconds],
+        "range_type": "time"
+    }
+
+    try:
+        response = requests.post(url, json=body, headers=headers, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+
+        # Extract polygon coordinates
+        if "features" in data and len(data["features"]) > 0:
+            coords = data["features"][0]["geometry"]["coordinates"][0]
+            # Convert from [lng, lat] to (lat, lng)
+            return [(c[1], c[0]) for c in coords]
+    except Exception as e:
+        print(f"  Isochrone API failed: {e}, falling back to distance-based")
+
+    return None
+
+
+def point_in_polygon(lat: float, lng: float, polygon: list[tuple[float, float]]) -> bool:
+    """
+    Check if a point is inside a polygon using ray casting algorithm.
+
+    Args:
+        lat: Point latitude
+        lng: Point longitude
+        polygon: List of (lat, lng) coordinates forming the polygon
+
+    Returns:
+        True if point is inside polygon
+    """
+    n = len(polygon)
+    inside = False
+
+    j = n - 1
+    for i in range(n):
+        lat_i, lng_i = polygon[i]
+        lat_j, lng_j = polygon[j]
+
+        if ((lng_i > lng) != (lng_j > lng)) and \
+           (lat < (lat_j - lat_i) * (lng - lng_i) / (lng_j - lng_i) + lat_i):
+            inside = not inside
+        j = i
+
+    return inside
 
 
 def get_walkable_streets(lat: float, lng: float, radius: int = DEFAULT_RADIUS_METERS) -> list[dict]:
@@ -122,27 +198,66 @@ def generate_random_wander(
     start_lat: float,
     start_lng: float,
     radius: int = DEFAULT_RADIUS_METERS,
-    target_distance: int = TOTAL_ROUTE_METERS
+    target_distance: int = TOTAL_ROUTE_METERS,
+    walk_minutes: int = SIMULATED_WALK_MINUTES
 ) -> list[RoutePoint]:
     """
     Generate a random wander route through nearby streets.
 
+    Uses walking isochrones when available (requires ORS_API_KEY) to determine
+    realistic walkable area based on time, otherwise falls back to distance-based.
+
     Args:
         start_lat: Starting latitude (hotel location)
         start_lng: Starting longitude
-        radius: Max distance to wander from start
+        radius: Max distance to wander from start (fallback if no isochrone)
         target_distance: Total route length in meters
+        walk_minutes: Walking time for isochrone calculation
 
     Returns:
         List of RoutePoints sampled along the route
     """
-    print(f"Fetching walkable streets within {radius}m...")
-    ways = get_walkable_streets(start_lat, start_lng, radius)
+    # Try to get walking isochrone for more accurate boundary
+    print(f"Fetching {walk_minutes}-minute walking isochrone...")
+    isochrone = get_walking_isochrone(start_lat, start_lng, walk_minutes)
+
+    if isochrone:
+        # Calculate bounding box of isochrone for OSM query
+        iso_lats = [p[0] for p in isochrone]
+        iso_lngs = [p[1] for p in isochrone]
+        center_lat = (max(iso_lats) + min(iso_lats)) / 2
+        center_lng = (max(iso_lngs) + min(iso_lngs)) / 2
+
+        # Estimate radius from isochrone extent
+        max_dist = max(
+            haversine_distance(start_lat, start_lng, p[0], p[1])
+            for p in isochrone
+        )
+        effective_radius = int(max_dist * 1.1)  # Add 10% buffer
+        print(f"  Isochrone covers ~{effective_radius}m radius")
+    else:
+        print(f"  No isochrone available, using {radius}m radius")
+        effective_radius = radius
+
+    print(f"Fetching walkable streets...")
+    ways = get_walkable_streets(start_lat, start_lng, effective_radius)
 
     if not ways:
         raise ValueError("No walkable streets found in this area")
 
-    print(f"Found {len(ways)} walkable street segments")
+    # Filter streets to only those within the isochrone (if available)
+    if isochrone:
+        filtered_ways = []
+        for way in ways:
+            # Keep way if any of its points are inside the isochrone
+            for lat, lng in way["coords"]:
+                if point_in_polygon(lat, lng, isochrone):
+                    filtered_ways.append(way)
+                    break
+        print(f"Found {len(ways)} streets, {len(filtered_ways)} within walkable area")
+        ways = filtered_ways if filtered_ways else ways
+    else:
+        print(f"Found {len(ways)} walkable street segments")
 
     # Build a graph of connected points
     all_points = []
