@@ -16,7 +16,7 @@ SAMPLE_INTERVAL_METERS = 10  # Distance between Street View captures
 DEFAULT_RADIUS_METERS = 800  # Max wander distance from hotel (auto-reduces if API slow)
 
 # Street View image settings
-STREETVIEW_SIZE = "640x480"
+STREETVIEW_SIZE = "640x640"
 STREETVIEW_FOV = 100  # Field of view
 STREETVIEW_PITCH = 5  # Slight upward angle to see buildings
 

@@ -6,7 +6,10 @@ import tempfile
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from streetview import FetchedImage
-from config import VIDEO_FPS, VIDEO_DURATION_SECONDS
+from config import VIDEO_FPS, VIDEO_DURATION_SECONDS, STREETVIEW_SIZE
+
+# Parse video dimensions from config
+VIDEO_WIDTH, VIDEO_HEIGHT = map(int, STREETVIEW_SIZE.split('x'))
 
 
 OUTPUT_DIR = Path(__file__).parent / "output"
@@ -106,11 +109,11 @@ def create_flythrough_video(
             # Load and resize image
             try:
                 img = Image.open(img_data.path)
-                img = img.resize((640, 480), Image.LANCZOS)
+                img = img.resize((VIDEO_WIDTH, VIDEO_HEIGHT), Image.LANCZOS)
                 img = img.convert('RGB')
             except Exception as e:
                 # Create black placeholder
-                img = Image.new('RGB', (640, 480), (0, 0, 0))
+                img = Image.new('RGB', (VIDEO_WIDTH, VIDEO_HEIGHT), (0, 0, 0))
 
             # Add overlay
             img = add_overlay_to_image(img, img_data.is_streetview, progress)
